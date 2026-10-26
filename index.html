@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hospital Analytics Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: main analytics column (KPI cards, trend chart, workload, report, appointments table) beside a right rail (day planner, booking form, doctor spotlight, doctors list). */
+:root{
+  color-scheme:light;
+  --bg:#edf3f6; --card:#ffffff; --fg:#13262e; --muted:#5b7480; --line:#dce6eb; --soft:#f3f8fa;
+  --accent:#0b6e8a; --accent-soft:#dcf0f6; --on-accent:#ffffff;
+  --done:#2a9bb8; --sched:#e6a038; --cancel:#d9604f; --noshow:#7c8aa5;
+  --av-l:30%; --shadow:0 1px 2px rgba(19,38,46,.05),0 6px 18px rgba(19,38,46,.05);
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b161b; --card:#12222a; --fg:#e5eff2; --muted:#92a9b3; --line:#223943; --soft:#0f1d24;
+    --accent:#4cc0dd; --accent-soft:#143441; --on-accent:#04222b;
+    --done:#3bb2cf; --sched:#f0b35a; --cancel:#ec7d6d; --noshow:#94a3bf;
+    --av-l:78%; --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b161b; --card:#12222a; --fg:#e5eff2; --muted:#92a9b3; --line:#223943; --soft:#0f1d24;
+  --accent:#4cc0dd; --accent-soft:#143441; --on-accent:#04222b;
+  --done:#3bb2cf; --sched:#f0b35a; --cancel:#ec7d6d; --noshow:#94a3bf;
+  --av-l:78%; --shadow:none; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.45;
+  padding:20px max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px))}
+button,select,input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.wrap{max-width:1380px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:40px;height:40px;border-radius:11px;background:var(--accent);display:grid;place-items:center;flex:none}
+.logo svg{width:22px;height:22px}
+h1{font-size:20px;line-height:1.2;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+select,input[type=search],input[type=date]{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-height:38px;width:100%}
+.controls select{width:auto}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-height:38px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn[disabled]:hover{border-color:var(--line);color:inherit}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--on-accent)}
+.btn.mini{padding:2px 9px;min-height:28px;font-size:12px}
+.btn.danger{border-color:var(--cancel);color:color-mix(in srgb,var(--cancel) 75%,var(--fg))}
+.btn.danger.confirm{background:var(--cancel);color:#fff}
+
+.banner{border:1px solid var(--cancel);background:color-mix(in srgb,var(--cancel) 10%,var(--card));border-radius:12px;padding:12px 16px}
+.banner b{display:block;margin-bottom:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:1040px){.layout{grid-template-columns:minmax(0,1fr)}}
+.stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:14px;font-weight:600;margin:0 0 12px}
+.card h2 small{font-weight:400;color:var(--muted);margin-left:6px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cap{color:var(--muted);font-size:12px}
+.num{font-variant-numeric:tabular-nums}
+.big{font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.tilecol{display:flex;flex-direction:column;gap:18px}
+.tilecol .card{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+.sqlnote{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--soft);border-radius:8px;padding:6px 10px;margin:0 0 12px;overflow-x:auto;white-space:nowrap}
+
+.donutwrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.donut{width:128px;height:128px;flex:none}
+.donut text{fill:var(--fg);text-anchor:middle}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:13px;min-width:0}
+.legend div{display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.legend b{margin-left:auto;padding-left:10px;font-variant-numeric:tabular-nums}
+
+.avs{display:flex}
+.av{--h:200;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none;
+  background:color-mix(in srgb,hsl(var(--h) 65% 50%) 20%,var(--card));color:hsl(var(--h) 55% var(--av-l));border:2px solid var(--card)}
+.avs .av+.av{margin-left:-9px}
+.av.lg{width:56px;height:56px;font-size:18px}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap;
+  background:color-mix(in srgb,var(--c) 15%,var(--card));color:color-mix(in srgb,var(--c) 70%,var(--fg))}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.s-Completed{--c:var(--done)}.s-Scheduled{--c:var(--sched)}.s-Cancelled{--c:var(--cancel)}.s-No-Show{--c:var(--noshow)}
+.s-Paid{--c:var(--done)}.s-Partial{--c:var(--sched)}.s-Pending{--c:var(--cancel)}
+.s-ok{--c:var(--done)}.s-bad{--c:var(--cancel)}.s-wait{--c:var(--sched)}
+
+.chartlegend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:6px;font-size:12px;color:var(--muted)}
+.chartlegend span{display:inline-flex;align-items:center;gap:6px}
+svg.chart{width:100%;height:auto;display:block}
+.ax{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.ax.now{fill:var(--fg);font-weight:700}
+.grid{stroke:var(--line);stroke-width:1}
+
+.seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--accent);box-shadow:0 0 0 1px var(--line)}
+.hbars{display:flex;flex-direction:column;gap:4px}
+.hb{display:grid;grid-template-columns:118px minmax(0,1fr) 64px;gap:10px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:6px 8px;cursor:pointer}
+.hb:hover{background:var(--soft)}
+.hb[aria-current=true]{background:var(--accent-soft)}
+.hb .t,.rb .t{height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.hb .t i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.hb .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.hb .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb{display:grid;grid-template-columns:130px minmax(0,1fr) 40px;gap:10px;align-items:center;padding:6px 0}
+.rb .t i{display:block;height:100%;background:var(--cancel);border-radius:99px}
+.rb .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+
+.days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
+.day{flex:none;min-width:48px;border:1px solid var(--line);background:var(--soft);border-radius:10px;padding:6px 8px;cursor:pointer;text-align:center;line-height:1.2}
+.day small{display:block;color:var(--muted);font-size:11px}
+.day b{font-size:15px}
+.day[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.day[aria-pressed=true] small{color:inherit;opacity:.85}
+.appt{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.appt:first-child{border-top:0}
+.appt .main{min-width:0;flex:1}
+.appt .doc{font-size:12px;color:var(--accent);font-weight:600}
+.appt .what{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appt .meta{font-size:12px;color:var(--muted)}
+.appt .side{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.mono{font-family:var(--mono);font-size:12.5px}
+.scroll{max-height:330px;overflow:auto}
+.empty{color:var(--muted);padding:18px 0;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;text-align:center}
+.stats div{background:var(--soft);border-radius:10px;padding:8px 4px}
+.stats b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.spot{text-align:center;display:flex;flex-direction:column;align-items:center}
+.spot .nm{font-weight:700;font-size:16px;margin-top:8px}
+
+.form{display:flex;flex-direction:column;gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.form select,.form input{font-weight:400;color:var(--fg)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.msg{font-size:13px;min-height:18px}
+.msg.bad{color:color-mix(in srgb,var(--cancel) 80%,var(--fg))}
+.msg.good{color:color-mix(in srgb,var(--done) 80%,var(--fg))}
+
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.tools input{flex:1;min-width:180px}
+.tools select{width:auto}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+table.small{min-width:640px}
+th{font-size:12px;text-align:left;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:hover{background:var(--soft)}
+td .cap{display:block}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.reportform{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.reportform label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600;min-width:150px}
+.note{color:var(--muted);font-size:12px;text-align:center;padding:4px 0 8px}
+#toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90vw;z-index:20}
+@media (prefers-reduced-motion:no-preference){.bar i,.hb .t i,.rb .t i{transition:width .35s ease}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 4v16M4 12h16"/></svg></div>
+      <div>
+        <h1>CityCare Hospital</h1>
+        <div class="sub" id="asof">Appointment and resource analytics</div>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="pill s-wait" id="conn">Connecting to SQL Server...</span>
+      <label for="dept" style="position:absolute;left:-9999px">Department</label>
+      <select id="dept"><option value="-1">All departments</option></select>
+      <button class="btn" id="reload" type="button">Refresh from database</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="alert" hidden></div>
+
+  <div class="layout">
+    <div class="stack">
+      <section class="cards" id="cards" aria-label="Key figures"></section>
+
+      <section class="card">
+        <div class="row" style="align-items:flex-start;flex-wrap:wrap">
+          <h2>Appointments per month <small>last 12 months</small></h2>
+          <div class="chartlegend" id="mlegend"></div>
+        </div>
+        <div id="monthly"></div>
+      </section>
+
+      <div class="two">
+        <section class="card">
+          <div class="row" style="flex-wrap:wrap">
+            <h2>Department workload</h2>
+            <div class="seg" id="metric" role="group" aria-label="Workload measure">
+              <button type="button" data-metric="appts" aria-pressed="true">Visits</button>
+              <button type="button" data-metric="rev" aria-pressed="false">Revenue</button>
+              <button type="button" data-metric="canc" aria-pressed="false">Cancel %</button>
+            </div>
+          </div>
+          <div class="hbars" id="depts"></div>
+          <div class="cap" style="margin-top:6px">Select a department to filter the whole dashboard.</div>
+        </section>
+        <section class="card">
+          <h2>Why appointments get cancelled</h2>
+          <div id="reasons"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Department report <small>stored procedure</small></h2>
+        <div class="reportform">
+          <label for="rs">From<input type="date" id="rs"></label>
+          <label for="re">To<input type="date" id="re"></label>
+          <button class="btn primary" id="runreport" type="button">Run report</button>
+        </div>
+        <div class="sqlnote" id="reportsql">EXEC usp_DepartmentReport</div>
+        <div class="tablewrap">
+          <table class="small">
+            <thead><tr><th>Department</th><th>Appointments</th><th>Completed</th><th>Cancelled</th><th>No-show</th><th>Cancel %</th><th>Billed</th><th>Collected</th></tr></thead>
+            <tbody id="reportbody"><tr><td colspan="8" class="empty">Choose dates and run the report.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Appointments <small>from view vw_AppointmentDetails</small></h2>
+        <div class="tools">
+          <input type="search" id="q" placeholder="Search patient, doctor, reason or ID" aria-label="Search appointments">
+          <select id="st" aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-Show</option>
+          </select>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>ID</th><th>Patient</th><th>Doctor</th><th>Department</th><th>Date</th><th>Reason</th><th>Status</th><th>Bill</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <span class="cap num" id="pageinfo"></span>
+          <span style="display:flex;gap:8px">
+            <button class="btn" id="prev" type="button">Previous</button>
+            <button class="btn" id="next" type="button">Next</button>
+          </span>
+        </div>
+      </section>
+    </div>
+
+    <aside class="stack" aria-label="Schedule and doctors">
+      <section class="card" id="upcoming"></section>
+
+      <section class="card">
+        <h2>Book an appointment <small>usp_BookAppointment</small></h2>
+        <form class="form" id="bookform">
+          <label for="bp">Patient<select id="bp" required></select></label>
+          <label for="bd">Doctor<select id="bd" required></select></label>
+          <div class="g2">
+            <label for="bdate">Date<input type="date" id="bdate" required></label>
+            <label for="btime">Time<select id="btime"></select></label>
+          </div>
+          <label for="breason">Reason<select id="breason"></select></label>
+          <button class="btn primary" type="submit">Book appointment</button>
+          <div class="msg" id="bmsg" role="status"></div>
+        </form>
+      </section>
+
+      <section class="card" id="spot"></section>
+      <section class="card">
+        <h2>Doctors <small id="doccount"></small></h2>
+        <div class="scroll" id="doclist"></div>
+      </section>
+    </aside>
+  </div>
+  <div class="note">Live data from SQL Server database HospitalAnalytics through the Flask API.</div>
+</div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+  var DEPTS=[],DOCS=[],PAT=[],APP=[];
+  var VR=['Routine Checkup','Follow-up Visit','Fever','Chest Pain','Skin Allergy','Joint Pain','Headache','General Consultation'];
+  var STATUSES=['Completed','Scheduled','Cancelled','No-Show'];
+  var SCOL={'Completed':'var(--done)','Scheduled':'var(--sched)','Cancelled':'var(--cancel)','No-Show':'var(--noshow)'};
+  var CRS=['Patient request','Doctor unavailable','Emergency','Rescheduled','Travel issue'];
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var $=function(s){return document.querySelector(s);};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var pad=function(n,w){return ('0000'+n).slice(-(w||2));};
+  var today=new Date();today.setHours(0,0,0,0);
+  var addDays=function(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;};
+  var iso=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+  var fmtDate=function(d){return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});};
+  var money=function(n){return '₹'+Math.round(n||0).toLocaleString('en-IN');};
+  var lakh=function(n){n=n||0;return n>=1e7?'₹'+(n/1e7).toFixed(2)+' Cr':n>=1e5?'₹'+(n/1e5).toFixed(1)+' L':money(n);};
+  var pct=function(a,b){return b?Math.round(1000*a/b)/10:0;};
+  var apid=function(id){return 'A-'+pad(id,4);};
+
+  var S={dept:-1,day:0,metric:'appts',q:'',st:'all',page:0,confirm:0,ready:false};
+  var PAGE=8;
+
+  /* ------------------------------- API ------------------------------- */
+  function api(url,opts){
+    return fetch(url,opts).then(function(r){
+      return r.json().catch(function(){return {};}).then(function(j){
+        if(!r.ok){var e=new Error(j.error||('Request failed ('+r.status+')'));e.hint=j.hint;throw e;}
+        return j;
+      });
+    });
+  }
+  function post(url,body){return api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});}
+  var toastTimer;
+  function toast(msg){var t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.hidden=true;},3500);}
+  function showError(e){
+    var b=$('#banner');b.hidden=false;
+    b.innerHTML='<b>Cannot load data from SQL Server</b>'+esc(e.message)+(e.hint?'<div class="cap" style="margin-top:4px">'+esc(e.hint)+'</div>':'');
+    var c=$('#conn');c.className='pill s-bad';c.textContent='Not connected';
+  }
+
+  /* ----------------------------- data load ---------------------------- */
+  function ingest(j){
+    var dIdx={};
+    DEPTS=j.departments.map(function(d,i){dIdx[d.id]=i;return [d.name,d.location];});
+    DOCS=j.doctors.map(function(d,i){return {id:i,dbid:d.id,first:d.first,last:d.last,spec:d.specialization,dept:dIdx[d.departmentId],fee:d.fee,name:'Dr. '+d.first+' '+d.last};});
+    var dbIdx={};DOCS.forEach(function(d){dbIdx[d.dbid]=d.id;});
+    var pIdx={};
+    PAT=j.patients.map(function(p,i){pIdx[p.id]=i;return {id:p.id,name:p.name,age:p.age};});
+    APP=j.appointments.map(function(a){
+      var p=a.date.split('-'),date=new Date(+p[0],+p[1]-1,+p[2]);
+      return {id:a.id,pid:pIdx[a.patientId],did:dbIdx[a.doctorId],date:date,off:Math.round((date-today)/86400000),
+        time:a.time||'00:00',mk:date.getFullYear()*12+date.getMonth(),status:a.status,reason:a.reason||'',cancel:a.cancelReason,
+        bill:a.total==null?null:{total:a.total,paid:a.paid||0,status:a.paymentStatus}};
+    }).sort(function(a,b){return a.date-b.date||(a.time<b.time?-1:a.time>b.time?1:0)||a.id-b.id;});
+  }
+
+  function refresh(){
+    return api('/api/dataset').then(function(j){
+      ingest(j);$('#banner').hidden=true;fillControls();renderAll();
+      return api('/api/health');
+    }).then(function(h){
+      var c=$('#conn');c.className='pill s-ok';c.textContent='Connected · '+h.database+' on '+h.server;
+      c.title=h.patients+' patients, '+h.doctors+' doctors, '+h.appointments+' appointments';
+    }).catch(showError);
+  }
+
+  /* --------------------------- helpers / charts ----------------------- */
+  function scoped(){return S.dept<0?APP:APP.filter(function(a){return DOCS[a.did]&&DOCS[a.did].dept===S.dept;});}
+  function docsIn(){return S.dept<0?DOCS:DOCS.filter(function(d){return d.dept===S.dept;});}
+  function avatar(d,cls){return '<span class="av '+(cls||'')+'" style="--h:'+((d.dept*45+190)%360)+'">'+esc(d.first.charAt(0)+d.last.charAt(0))+'</span>';}
+
+  function donut(parts,total){
+    var C=2*Math.PI*52,off=0;
+    var s='<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="Appointments by status"><circle cx="70" cy="70" r="52" fill="none" style="stroke:var(--line)" stroke-width="16"/>';
+    parts.forEach(function(p){
+      if(!p.v)return;var len=C*p.v/total;
+      s+='<circle cx="70" cy="70" r="52" fill="none" stroke-width="16" style="stroke:'+p.c+'" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 70 70)"/>';
+      off+=len;
+    });
+    s+='<text x="70" y="66" font-size="11" style="fill:var(--muted)">Total</text><text x="70" y="88" font-size="24" font-weight="700">'+total.toLocaleString('en-IN')+'</text></svg>';
+    return s;
+  }
+
+  /* ------------------------------ renderers --------------------------- */
+  function renderCards(A,D){
+    var cnt={};STATUSES.forEach(function(s){cnt[s]=0;});A.forEach(function(a){if(cnt[a.status]!=null)cnt[a.status]++;});
+    var todayN=A.filter(function(a){return a.off===0;}).length;
+    var onDuty={};A.forEach(function(a){if(a.off===0)onDuty[a.did]=1;});
+    var billed=0,paid=0,bc={Paid:0,Partial:0,Pending:0};
+    A.forEach(function(a){if(a.bill){billed+=a.bill.total;paid+=a.bill.paid;if(bc[a.bill.status]!=null)bc[a.bill.status]++;}});
+    var closed=cnt.Completed+cnt.Cancelled+cnt['No-Show'];
+    var parts=STATUSES.map(function(s){return {v:cnt[s],c:SCOL[s]};});
+    var legend=STATUSES.map(function(s){return '<div><span class="dot" style="background:'+SCOL[s]+'"></span>'+s+'<b>'+cnt[s].toLocaleString('en-IN')+'</b></div>';}).join('');
+    var stack=D.slice(0,3).map(function(d){return avatar(d);}).join('');
+    var h='';
+    h+='<div class="card"><h2>Appointments</h2><div class="donutwrap">'+donut(parts,A.length||1)+'<div class="legend">'+legend+'</div></div></div>';
+    h+='<div class="tilecol"><div class="card"><div class="cap">Today</div><div class="big num">'+todayN+'</div><div class="cap">appointments booked</div></div>'+
+       '<div class="card"><div class="cap">Upcoming</div><div class="big num">'+cnt.Scheduled+'</div><div class="cap">scheduled from today</div></div></div>';
+    h+='<div class="card"><div class="row"><h2 style="margin:0">Doctors</h2><div class="avs">'+stack+'</div></div>'+
+       '<div class="big num" style="margin-top:10px">'+D.length+'</div><div class="cap">'+(S.dept<0?'across '+DEPTS.length+' departments':esc(DEPTS[S.dept][0]))+'</div>'+
+       '<div class="row" style="margin-top:12px"><span>With visits today</span><b class="num">'+Object.keys(onDuty).length+'</b></div>'+
+       '<div class="row"><span>Cancellation rate</span><b class="num">'+pct(cnt.Cancelled,closed)+'%</b></div>'+
+       '<div class="row"><span>No-show rate</span><b class="num">'+pct(cnt['No-Show'],closed)+'%</b></div></div>';
+    h+='<div class="card"><h2>Billing</h2><div class="big num">'+lakh(paid)+'</div><div class="cap">collected of '+lakh(billed)+' billed</div>'+
+       '<div class="bar" style="margin:12px 0 6px" role="img" aria-label="Collection rate"><i style="width:'+pct(paid,billed)+'%;background:var(--done)"></i></div>'+
+       '<div class="row cap"><span>'+pct(paid,billed)+'% collected</span><span>'+lakh(billed-paid)+' outstanding</span></div>'+
+       '<div class="chips" style="margin-top:12px"><span class="pill s-Paid">'+bc.Paid+' paid</span><span class="pill s-Partial">'+bc.Partial+' partial</span><span class="pill s-Pending">'+bc.Pending+' pending</span></div></div>';
+    $('#cards').innerHTML=h;
+  }
+
+  function renderMonthly(A){
+    var base=today.getFullYear()*12+today.getMonth(),months=[];
+    for(var k=11;k>=0;k--)months.push(base-k);
+    var data=months.map(function(m){var o={Completed:0,Scheduled:0,Cancelled:0,'No-Show':0,t:0};A.forEach(function(a){if(a.mk===m){o[a.status]++;o.t++;}});return o;});
+    var max=Math.max.apply(null,data.map(function(d){return d.t;}).concat([4]));
+    var top=Math.ceil(max/20)*20;
+    var W=700,H=250,ml=34,mr=8,mt=10,mb=28,iw=W-ml-mr,ih=H-mt-mb,step=iw/12,bw=step*0.58;
+    var y=function(v){return mt+ih-ih*v/top;};
+    var s='<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Appointments per month, stacked by status">';
+    for(var i=0;i<=4;i++){var v=top*i/4;s+='<line class="grid" x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(v)+'" y2="'+y(v)+'"/><text class="ax" x="'+(ml-6)+'" y="'+(y(v)+4)+'" text-anchor="end">'+v+'</text>';}
+    data.forEach(function(d,idx){
+      var x=ml+step*idx+(step-bw)/2,acc=0,tip=MON[months[idx]%12]+' '+Math.floor(months[idx]/12)+': '+d.t+' appointments';
+      s+='<g><title>'+tip+'</title>';
+      STATUSES.forEach(function(st){
+        var v=d[st];if(!v)return;var h=ih*v/top;
+        s+='<rect x="'+x.toFixed(1)+'" y="'+(y(acc+v)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h-1,1).toFixed(1)+'" rx="2" style="fill:'+SCOL[st]+'"/>';
+        acc+=v;
+      });
+      s+='<text class="ax'+(idx===11?' now':'')+'" x="'+(x+bw/2).toFixed(1)+'" y="'+(H-9)+'" text-anchor="middle">'+MON[months[idx]%12]+'</text></g>';
+    });
+    s+='</svg>';
+    $('#monthly').innerHTML=s;
+    $('#mlegend').innerHTML=STATUSES.map(function(st){return '<span><i class="dot" style="background:'+SCOL[st]+'"></i>'+st+'</span>';}).join('');
+  }
+
+  function renderDepts(){
+    var rows=DEPTS.map(function(d,i){
+      var n=0,rev=0,canc=0,closed=0;
+      APP.forEach(function(a){
+        if(!DOCS[a.did]||DOCS[a.did].dept!==i)return;
+        n++;if(a.bill)rev+=a.bill.total;if(a.status==='Cancelled')canc++;if(a.status!=='Scheduled')closed++;
+      });
+      return {i:i,name:d[0],val:S.metric==='appts'?n:S.metric==='rev'?rev:pct(canc,closed)};
+    });
+    rows.sort(function(a,b){return b.val-a.val;});
+    var mx=Math.max.apply(null,rows.map(function(r){return r.val;}).concat([1]));
+    var lab=function(v){return S.metric==='appts'?v.toLocaleString('en-IN'):S.metric==='rev'?lakh(v):v+'%';};
+    $('#depts').innerHTML=rows.map(function(r){
+      return '<button type="button" class="hb" data-dept="'+r.i+'" aria-current="'+(S.dept===r.i)+'"><span class="n">'+esc(r.name)+'</span><span class="t"><i style="width:'+(100*r.val/mx).toFixed(1)+'%"></i></span><span class="v">'+lab(r.val)+'</span></button>';
+    }).join('');
+  }
+
+  function renderReasons(A){
+    var c={},tot=0;
+    A.forEach(function(a){if(a.cancel){c[a.cancel]=(c[a.cancel]||0)+1;tot++;}});
+    var rows=Object.keys(c).map(function(r){return {r:r,v:c[r]};}).sort(function(a,b){return b.v-a.v;});
+    var mx=Math.max(1,rows.length?rows[0].v:1);
+    $('#reasons').innerHTML=(rows.length?rows.map(function(x){
+      return '<div class="rb"><span>'+esc(x.r)+'</span><span class="t"><i style="width:'+(100*x.v/mx).toFixed(1)+'%"></i></span><span class="v">'+x.v+'</span></div>';
+    }).join(''):'<div class="empty">No cancellations in this view.</div>')+'<div class="cap" style="margin-top:6px">'+tot+' cancelled appointments in this view</div>';
+  }
+
+  function renderUpcoming(A){
+    var tabs='';
+    for(var i=0;i<7;i++){var d=addDays(today,i);
+      tabs+='<button type="button" class="day" data-day="'+i+'" aria-pressed="'+(S.day===i)+'"><small>'+(i===0?'Today':d.toLocaleDateString('en-IN',{weekday:'short'}))+'</small><b>'+d.getDate()+'</b></button>';}
+    var list=A.filter(function(a){return a.off===S.day&&a.status==='Scheduled';}).sort(function(a,b){return a.time<b.time?-1:a.time>b.time?1:0;});
+    var sel=addDays(today,S.day);
+    var items=list.length?list.map(function(a){
+      var d=DOCS[a.did],pt=PAT[a.pid],ask=S.confirm===a.id;
+      return '<div class="appt">'+avatar(d)+'<div class="main"><div class="doc">'+esc(d.name)+'</div><div class="what">'+esc(pt.name)+' · '+esc(a.reason)+'</div><div class="meta">'+esc(DEPTS[d.dept][0])+' · '+apid(a.id)+'</div></div>'+
+        '<div class="side"><span class="mono">'+esc(a.time)+'</span><button type="button" class="btn mini danger'+(ask?' confirm':'')+'" data-cancel="'+a.id+'">'+(ask?'Confirm cancel':'Cancel')+'</button></div></div>';
+    }).join(''):'<div class="empty">No scheduled appointments on this day.</div>';
+    $('#upcoming').innerHTML='<h2 style="margin-bottom:2px">Upcoming appointments</h2><div class="cap" style="margin:0 0 10px">'+sel.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' · '+list.length+' booked</div><div class="days">'+tabs+'</div><div class="scroll">'+items+'</div>';
+  }
+
+  function renderSpot(A){
+    var stat={};
+    A.forEach(function(a){if(a.status!=='Completed')return;var o=stat[a.did]||(stat[a.did]={n:0,p:{},rev:0});o.n++;o.p[a.pid]=1;o.rev+=a.bill?a.bill.total:0;});
+    var best=null;Object.keys(stat).forEach(function(k){if(best===null||stat[k].n>stat[best].n)best=k;});
+    if(best===null){$('#spot').innerHTML='<h2>Most completed visits</h2><div class="empty">No completed visits yet.</div>';return;}
+    var d=DOCS[best],o=stat[best];
+    $('#spot').innerHTML='<h2>Most completed visits</h2><div class="spot">'+avatar(d,'lg')+'<div class="nm">'+esc(d.name)+'</div><div class="cap">'+esc(d.spec)+' · '+esc(DEPTS[d.dept][0])+'</div></div>'+
+      '<div class="stats"><div><b>'+o.n+'</b><span class="cap">visits</span></div><div><b>'+Object.keys(o.p).length+'</b><span class="cap">patients</span></div><div><b>'+lakh(o.rev)+'</b><span class="cap">billed</span></div></div>';
+  }
+
+  function renderDocs(A,D){
+    var t0={};A.forEach(function(a){if(a.off===0)t0[a.did]=(t0[a.did]||0)+1;});
+    $('#doccount').textContent=D.length+' listed';
+    $('#doclist').innerHTML=D.map(function(d){
+      return '<div class="appt">'+avatar(d)+'<div class="main"><div class="what">'+esc(d.name)+'</div><div class="meta">'+esc(d.spec)+'</div></div><div style="text-align:right"><div class="num" style="font-weight:600">'+money(d.fee)+'</div><div class="meta">'+(t0[d.id]||0)+' today</div></div></div>';
+    }).join('');
+  }
+
+  function renderTable(A){
+    var q=S.q.trim().toLowerCase();
+    var rows=A.slice().reverse().filter(function(a){
+      if(S.st!=='all'&&a.status!==S.st)return false;
+      if(!q)return true;
+      return (PAT[a.pid].name+' '+DOCS[a.did].name+' '+a.reason+' '+apid(a.id)).toLowerCase().indexOf(q)>-1;
+    });
+    var pages=Math.max(1,Math.ceil(rows.length/PAGE));
+    if(S.page>=pages)S.page=pages-1;
+    var from=S.page*PAGE,slice=rows.slice(from,from+PAGE);
+    $('#tbody').innerHTML=slice.length?slice.map(function(a){
+      var d=DOCS[a.did],pt=PAT[a.pid];
+      var bill=a.bill?'<span class="num">'+money(a.bill.total)+'</span> <span class="pill s-'+esc(a.bill.status)+'">'+esc(a.bill.status)+'</span>':'<span class="cap">No bill</span>';
+      return '<tr><td class="mono">'+apid(a.id)+'</td><td>'+esc(pt.name)+'<span class="cap">'+pt.age+' yrs</span></td><td>'+esc(d.name)+'</td><td>'+esc(DEPTS[d.dept][0])+'</td><td class="num">'+fmtDate(a.date)+'<span class="cap mono">'+esc(a.time)+'</span></td><td>'+esc(a.reason)+'</td><td><span class="pill s-'+esc(a.status)+'">'+esc(a.status)+'</span></td><td>'+bill+'</td></tr>';
+    }).join(''):'<tr><td colspan="8" class="empty">No appointments match these filters.</td></tr>';
+    $('#pageinfo').textContent=rows.length?(from+1)+'–'+(from+slice.length)+' of '+rows.length.toLocaleString('en-IN'):'0 results';
+    $('#prev').disabled=S.page===0;$('#next').disabled=S.page>=pages-1;
+  }
+
+  function renderAll(){
+    var A=scoped(),D=docsIn();
+    renderCards(A,D);renderMonthly(A);renderDepts();renderReasons(A);renderUpcoming(A);renderSpot(A);renderDocs(A,D);renderTable(A);
+  }
+
+  /* ------------------------- controls and forms ----------------------- */
+  function fillControls(){
+    var sel=$('#dept'),cur=S.dept;
+    sel.innerHTML='<option value="-1">All departments</option>'+DEPTS.map(function(d,i){return '<option value="'+i+'">'+esc(d[0])+'</option>';}).join('');
+    sel.value=String(cur);
+    var bp=$('#bp').value,bd=$('#bd').value;
+    $('#bp').innerHTML=PAT.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+' (P-'+pad(p.id,3)+')</option>';}).join('');
+    $('#bd').innerHTML=DOCS.map(function(d){return '<option value="'+d.dbid+'">'+esc(d.name)+' – '+esc(DEPTS[d.dept][0])+'</option>';}).join('');
+    if(bp)$('#bp').value=bp;if(bd)$('#bd').value=bd;
+    if(!$('#btime').options.length){
+      var t='';for(var h=9;h<17;h++){t+='<option>'+pad(h)+':00</option><option>'+pad(h)+':30</option>';}
+      $('#btime').innerHTML=t;
+      $('#breason').innerHTML=VR.map(function(r){return '<option>'+esc(r)+'</option>';}).join('');
+      $('#bdate').min=iso(today);$('#bdate').value=iso(addDays(today,1));
+    }
+    if(!$('#rs').value){$('#rs').value=iso(addDays(today,-90));$('#re').value=iso(today);}
+  }
+
+  function runReport(){
+    var s=$('#rs').value,e=$('#re').value;
+    $('#reportsql').textContent="EXEC usp_DepartmentReport @StartDate = '"+s+"', @EndDate = '"+e+"'";
+    api('/api/report/department?start='+encodeURIComponent(s)+'&end='+encodeURIComponent(e)).then(function(j){
+      $('#reportbody').innerHTML=j.rows.length?j.rows.map(function(r){
+        return '<tr><td>'+esc(r.DepartmentName)+'</td><td class="num">'+r.TotalAppointments+'</td><td class="num">'+r.Completed+'</td><td class="num">'+r.Cancelled+'</td><td class="num">'+r.NoShow+'</td><td class="num">'+r.CancelRatePct+'%</td><td class="num">'+money(r.TotalBilled)+'</td><td class="num">'+money(r.Collected)+'</td></tr>';
+      }).join(''):'<tr><td colspan="8" class="empty">No appointments in this date range.</td></tr>';
+    }).catch(function(err){toast(err.message);});
+  }
+
+  function bookMsg(text,cls){var m=$('#bmsg');m.textContent=text;m.className='msg '+(cls||'');}
+
+  function init(){
+    $('#asof').textContent='Appointment and resource analytics · '+today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    $('#dept').addEventListener('change',function(e){S.dept=+e.target.value;S.page=0;renderAll();});
+    $('#reload').addEventListener('click',function(){refresh().then(function(){toast('Reloaded from SQL Server');});});
+    $('#q').addEventListener('input',function(e){S.q=e.target.value;S.page=0;renderTable(scoped());});
+    $('#st').addEventListener('change',function(e){S.st=e.target.value;S.page=0;renderTable(scoped());});
+    $('#prev').addEventListener('click',function(){S.page=Math.max(0,S.page-1);renderTable(scoped());});
+    $('#next').addEventListener('click',function(){S.page++;renderTable(scoped());});
+    $('#runreport').addEventListener('click',runReport);
+
+    $('#bookform').addEventListener('submit',function(e){
+      e.preventDefault();bookMsg('Booking...','');
+      post('/api/appointments',{patientId:$('#bp').value,doctorId:$('#bd').value,date:$('#bdate').value,time:$('#btime').value,reason:$('#breason').value})
+        .then(function(r){
+          var off=Math.round((new Date($('#bdate').value+'T00:00:00')-today)/86400000);
+          if(off>=0&&off<7)S.day=off;
+          bookMsg('Booked appointment '+apid(r.appointmentId)+'.','good');
+          return refresh();
+        }).catch(function(err){bookMsg(err.message,'bad');});
+    });
+
+    document.addEventListener('click',function(e){
+      var t=e.target.closest('[data-day],[data-dept],[data-metric],[data-cancel]');if(!t)return;
+      if(t.hasAttribute('data-day')){S.day=+t.getAttribute('data-day');S.confirm=0;renderUpcoming(scoped());}
+      else if(t.hasAttribute('data-cancel')){
+        var id=+t.getAttribute('data-cancel');
+        if(S.confirm!==id){S.confirm=id;renderUpcoming(scoped());return;}
+        S.confirm=0;
+        post('/api/appointments/'+id+'/cancel',{reason:'Patient request'}).then(function(){toast('Appointment '+apid(id)+' cancelled');return refresh();}).catch(function(err){toast(err.message);renderUpcoming(scoped());});
+      }
+      else if(t.hasAttribute('data-dept')){var v=+t.getAttribute('data-dept');S.dept=S.dept===v?-1:v;$('#dept').value=String(S.dept);S.page=0;renderAll();}
+      else{S.metric=t.getAttribute('data-metric');Array.prototype.forEach.call(document.querySelectorAll('#metric button'),function(b){b.setAttribute('aria-pressed',b===t);});renderDepts();}
+    });
+    refresh().then(function(){if(APP.length)runReport();});
+  }
+  init();
+})();
+</script>
+</body>
+</html>
